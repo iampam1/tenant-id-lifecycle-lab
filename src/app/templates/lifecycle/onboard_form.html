@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Onboard User to IGA - Tenant Lifecycle Lab{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2>Onboard New User (to IGA)</h2>
+        <p>This will provision a user in the IGA system and potentially create/link a local application user.
+           The user will be associated with your current tenant.
+        </p>
+        <div id="onboardError" class="alert alert-danger" style="display: none;" role="alert"></div>
+        <div id="onboardSuccess" class="alert alert-success" style="display: none;" role="alert"></div>
+
+        <form id="onboardForm">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="username" class="form-label">IGA Username</label>
+                    <input type="text" class="form-control" id="username" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="email" class="form-label">Email Address</label>
+                    <input type="email" class="form-control" id="email" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="firstName" class="form-label">First Name</label>
+                    <input type="text" class="form-control" id="firstName">
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label for="lastName" class="form-label">Last Name</label>
+                    <input type="text" class="form-control" id="lastName">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Initial Password (for IGA)</label>
+                <input type="password" class="form-control" id="password" required minlength="8">
+            </div>
+            <div class="mb-3">
+                <label for="igaRole" class="form-label">IGA Role (Optional)</label>
+                <input type="text" class="form-control" id="igaRole" placeholder="e.g., standard_user_role_id">
+                <div class="form-text">Conceptual: Enter the IGA system's identifier for the role.</div>
+            </div>
+            <div class="mb-3">
+                <label for="extraAttributes" class="form-label">Extra IGA Attributes (JSON, Optional)</label>
+                <textarea class="form-control" id="extraAttributes" rows="3" placeholder='e.g., {"department": "Sales", "employeeId": "E123"}'></textarea>
+                <div class="form-text">Enter valid JSON or leave empty.</div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Onboard User</button>
+            <a href="/ui/dashboard" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+            if (!localStorage.getItem('accessToken')) {
+                window.location.href = '/ui/login?source=onboard_form';
+            return;
+        }
+            // Navbar already updated by main.js
+    });
+
+    document.getElementById('onboardForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+            clearMessages('onboardError', 'onboardSuccess');
+
+        let currentTenantId = null;
+        try {
+                const meResponse = await fetchWithAuth(`${API_BASE_URL}/users/me`);
+            if (meResponse.ok) {
+                const meData = await meResponse.json();
+                currentTenantId = meData.tenant_id;
+            } else {
+                    // fetchWithAuth handles 401, this is for other errors
+                    displayError('onboardError', 'Could not determine current tenant. Please re-login.');
+                return;
+            }
+        } catch(e) {
+                displayError('onboardError', 'Error fetching your user details. Please re-login.');
+            return;
+        }
+
+        if (!currentTenantId) {
+                 displayError('onboardError', 'Tenant ID could not be determined for the current user.');
+             return;
+        }
+
+        let extraAttrs = null;
+        const extraAttributesText = document.getElementById('extraAttributes').value;
+        if (extraAttributesText.trim() !== "") {
+            try {
+                extraAttrs = JSON.parse(extraAttributesText);
+            } catch (e) {
+                    displayError('onboardError', 'Extra IGA Attributes is not valid JSON.');
+                return;
+            }
+        }
+
+        const payload = {
+            username: document.getElementById('username').value,
+            email: document.getElementById('email').value,
+            first_name: document.getElementById('firstName').value || null,
+            last_name: document.getElementById('lastName').value || null,
+            password: document.getElementById('password').value,
+            tenant_id: currentTenantId, // Current admin's tenant_id
+            iga_role: document.getElementById('igaRole').value || null,
+            extra_iga_attributes: extraAttrs
+        };
+
+        // Filter out null values from payload keys like first_name, last_name, iga_role if they are truly optional
+        // and API doesn't want nulls for them. For now, sending them as null if empty.
+
+        try {
+            const response = await fetch('/api/v1/lifecycle/onboard', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                errorDiv.textContent = data.detail || 'User onboarding failed.';
+                errorDiv.style.display = 'block';
+            } else {
+                successDiv.innerHTML = `Onboarding process for user '${payload.username}' initiated successfully.<br>
+                                       Status: ${data.status}.<br>
+                                       IGA User ID: ${data.iga_user_id || 'N/A'}.<br>
+                                       App User ID: ${data.app_user_id || 'N/A'}.`;
+                successDiv.style.display = 'block';
+                document.getElementById('onboardForm').reset();
+            }
+        } catch (error) {
+            console.error('Onboarding error:', error);
+            errorDiv.textContent = 'An unexpected error occurred during onboarding.';
+            errorDiv.style.display = 'block';
+        }
+    });
+</script>
+{% endblock %}

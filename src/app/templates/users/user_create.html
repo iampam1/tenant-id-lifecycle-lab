@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Create User - Tenant Lifecycle Lab{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2>Create New User for My Tenant</h2>
+        <p>This user will be created within your current tenant.</p>
+        <div id="createUserError" class="alert alert-danger" style="display: none;" role="alert"></div>
+        <div id="createUserSuccess" class="alert alert-success" style="display: none;" role="alert"></div>
+        <form id="createUserForm">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" required>
+            </div>
+            <div class="mb-3">
+                <label for="email" class="form-label">Email address</label>
+                <input type="email" class="form-control" id="email" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" required minlength="8">
+            </div>
+                 <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="is_active" checked>
+                    <label class="form-check-label" for="is_active">User is active</label>
+                </div>
+                <button type="submit" class="btn btn-primary">Create User</button>
+                <a href="/ui/users" class="btn btn-secondary">Cancel</a>
+            </form>
+        </div>
+    </div>
+    {% endblock %}
+
+    {% block scripts %}
+    {{ super() }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!localStorage.getItem('accessToken')) {
+                window.location.href = '/ui/login?source=user_create';
+                return;
+            }
+            // Navbar is already updated by main.js's call.
+        });
+
+        document.getElementById('createUserForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            clearMessages('createUserError', 'createUserSuccess');
+
+            const payload = {
+                username: document.getElementById('username').value,
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                is_active: document.getElementById('is_active').checked
+            };
+
+            try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/users/`, { // Use API_BASE_URL and fetchWithAuth
+                    method: 'POST',
+                    body: payload // fetchWithAuth will stringify and set Content-Type
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    // fetchWithAuth handles 401, this is for other errors like 400, 422
+                    displayError('createUserError', data.detail || 'User creation failed.');
+                } else {
+                    displaySuccess('createUserSuccess', 'User "' + data.username + '" created successfully!');
+                    document.getElementById('createUserForm').reset();
+                }
+            } catch (error) { // Network errors or others
+                console.error('User creation error:', error);
+                displayError('createUserError', 'An unexpected error occurred during user creation.');
+            }
+        });
+    </script>
+    {% endblock %}
+    ```

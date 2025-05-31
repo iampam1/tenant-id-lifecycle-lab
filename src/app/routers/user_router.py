@@ -93,3 +93,34 @@ async def create_new_app_user(
 
 # Future endpoints for user management (GET /users/, GET /users/{id}, PUT, DELETE)
 # would also be protected and potentially have role-based access control.
+
+@router.get("/me", response_model=user_schema.UserRead, summary="Get current authenticated user details")
+async def read_users_me(
+    current_user: user_model.User = Depends(dependencies.get_current_user)
+):
+    """
+    Fetch details for the currently authenticated user.
+    """
+    return current_user
+
+@router.get(
+    "/", # Mounted under /api/v1/users
+    response_model=List[user_schema.UserRead],
+    summary="List users within the current authenticated user's tenant"
+)
+async def list_users_in_tenant(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(dependencies.get_db),
+    current_user: user_model.User = Depends(dependencies.get_current_user)
+):
+    """
+    Retrieve all users belonging to the current authenticated user's tenant.
+    Supports pagination.
+    """
+    # This service function doesn't exist yet. We need to create it.
+    # For now, query directly.
+    # users = auth_service.get_users_by_tenant(db, tenant_id=current_user.tenant_id, skip=skip, limit=limit)
+
+    users = db.query(user_model.User)                  .filter(user_model.User.tenant_id == current_user.tenant_id)                  .offset(skip)                  .limit(limit)                  .all()
+    return users

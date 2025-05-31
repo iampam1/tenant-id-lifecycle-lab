@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Access Review - Tenant Lifecycle Lab{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Access Review Data for My Tenant</h1>
+    </div>
+    <p>This page displays users and their conceptually assigned IGA roles for your current tenant. This is for manual review purposes (MVP).</p>
+
+    <div id="reviewError" class="alert alert-danger" style="display: none;" role="alert"></div>
+    <div id="reviewInfo" class="alert alert-info" style="display: none;" role="alert"></div>
+
+    <h4 id="tenantInfo">Tenant: Loading...</h4>
+    <div class="table-responsive">
+        <table class="table table-striped table-sm">
+            <thead>
+                <tr>
+                    <th>IGA User Identifier</th>
+                    <th>App Username (if linked)</th>
+                    <th>Assigned IGA Roles</th>
+                </tr>
+            </thead>
+            <tbody id="accessReviewTableBody">
+                <!-- Data will be populated by JavaScript -->
+                <tr><td colspan="3">Loading review data...</td></tr>
+            </tbody>
+        </table>
+    </div>
+     <p class="mt-3"><small>Review Timestamp: <span id="reviewTimestamp">N/A</span></small></p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        if (!localStorage.getItem('accessToken')) {
+            window.location.href = '/ui/login?source=access_review';
+            return;
+        }
+        // Navbar already updated by main.js
+
+        const tableBody = document.getElementById('accessReviewTableBody');
+        const errorDiv = document.getElementById('reviewError');
+        const infoDiv = document.getElementById('reviewInfo');
+        const tenantInfoDisplay = document.getElementById('tenantInfo');
+        const reviewTimestampDisplay = document.getElementById('reviewTimestamp');
+
+        clearMessages('reviewError', 'reviewInfo');
+
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/lifecycle/review`, { method: 'GET' });
+            tableBody.innerHTML = ''; // Clear loading message
+            const data = await response.json();
+
+            if (!response.ok) {
+                // fetchWithAuth handles 401, this is for other errors
+                displayError('reviewError', data.detail || (data.message || 'Failed to load access review data.'));
+                return;
+            }
+
+            tenantInfoDisplay.textContent = `Tenant: ${data.tenant_name} (ID: ${data.tenant_id})`;
+            reviewTimestampDisplay.textContent = new Date(data.review_timestamp).toLocaleString();
+
+            if (data.message && data.users_and_roles.length === 0) {
+                displaySuccess('reviewInfo', data.message); // Use displaySuccess for info messages
+            }
+
+            if (data.users_and_roles.length === 0 && !(data.message && data.message.includes("IGA system not configured"))) {
+                 tableBody.innerHTML = '<tr><td colspan="3">No users or roles found for this tenant in IGA, or data could not be retrieved.</td></tr>';
+            } else if (data.users_and_roles.length > 0) {
+                data.users_and_roles.forEach(userReview => {
+                    const row = tableBody.insertRow();
+                    row.insertCell().textContent = userReview.iga_user_identifier;
+                    row.insertCell().textContent = userReview.app_username || 'N/A';
+                    row.insertCell().textContent = userReview.roles.join(', ') || 'No roles';
+                });
+            }
+        } catch (error) {
+            console.error('Error fetching access review data:', error);
+            tableBody.innerHTML = '';
+            displayError('reviewError', 'An unexpected error occurred while fetching access review data.');
+        }
+    });
+</script>
+{% endblock %}

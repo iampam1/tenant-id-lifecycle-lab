@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Tenant Lifecycle Lab{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Dashboard</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="location.href='/ui/tenants/create'">Create Tenant (SuperAdmin)</button> {# Example for a superadmin feature #}
+            </div>
+        </div>
+    </div>
+
+    <div id="userInfo" class="mb-3">
+        <p>Welcome, <strong id="userEmailDisplay">N/A</strong>!</p>
+        <p>Tenant ID: <strong id="userTenantIdDisplay">N/A</strong></p>
+    </div>
+
+    <h4>Tenant Admin Actions:</h4>
+    <div class="list-group">
+        <a href="/ui/users/create" class="list-group-item list-group-item-action">Create User in My Tenant</a>
+        <a href="/ui/users" class="list-group-item list-group-item-action">List Users in My Tenant</a>
+        <hr/>
+        <a href="/ui/lifecycle/onboard" class="list-group-item list-group-item-action">Onboard New User (to IGA)</a>
+        <a href="/ui/lifecycle/privilege" class="list-group-item list-group-item-action">Request Privileged Session</a>
+        <a href="/ui/lifecycle/offboard" class="list-group-item list-group-item-action">Offboard User</a>
+        <a href="/ui/lifecycle/review" class="list-group-item list-group-item-action">Access Review Data (View)</a>
+    </div>
+
+    {# Placeholder for future dashboard widgets/summaries #}
+    {# <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Users Onboarded</h5>
+                    <p class="card-text" id="usersOnboardedCount">--</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Active Privileged Sessions</h5>
+                    <p class="card-text" id="activeSessionsCount">--</p>
+                </div>
+            </div>
+        </div>
+    </div> #}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }} {# Includes main.js which now calls checkAuthStatusAndUpdateNavbar(false) #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // main.js already calls checkAuthStatusAndUpdateNavbar(false).
+    // We need to ensure redirection if no token for protected pages.
+    if (!localStorage.getItem('accessToken')) {
+         window.location.href = '/ui/login?source=dashboard'; // Force redirect if not logged in
+         return;
+    }
+    // If token exists, checkAuthStatusAndUpdateNavbar(false) from main.js already updated the nav.
+    // Now, fetch user details.
+    fetchUserDetails();
+});
+
+async function fetchUserDetails() {
+    // Using fetchWithAuth from main.js
+    try {
+        const response = await fetchWithAuth(`${API_BASE_URL}/users/me`); // Use API_BASE_URL
+        if (response.ok) {
+            const userData = await response.json();
+            const userEmailDisplay = document.getElementById('userEmailDisplay');
+            const userTenantIdDisplay = document.getElementById('userTenantIdDisplay');
+            if (userEmailDisplay) userEmailDisplay.textContent = userData.email;
+            if (userTenantIdDisplay) userTenantIdDisplay.textContent = userData.tenant_id;
+        } else {
+            // fetchWithAuth handles 401 by redirecting.
+            // Other errors might need specific handling here if not redirected.
+            if (response.status !== 401) { // if not already handled by fetchWithAuth redirect
+                console.error("Failed to fetch user details:", response.status);
+                displayError('userInfo', 'Could not load user details.'); // Assuming userInfo div can display errors
+            }
+        }
+    } catch (error) { // Network errors or other issues not caught by fetchWithAuth's 401 handling
+        console.error("Error fetching /users/me:", error);
+        displayError('userInfo', 'Error loading user details.');
+    }
+}
+</script>
+{% endblock %}

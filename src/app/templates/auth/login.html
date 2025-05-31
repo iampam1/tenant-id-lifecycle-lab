@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Tenant Lifecycle Lab{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2>Login</h2>
+        <div id="loginError" class="alert alert-danger" style="display: none;" role="alert"></div>
+        <form id="loginForm">
+            <div class="mb-3">
+                <label for="email" class="form-label">Email address (as username)</label>
+                <input type="email" class="form-control" id="email" name="username" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Login</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuthStatusAndUpdateNavbar(false); // Don't redirect from login page if no token
+            // If token exists, maybe redirect to dashboard?
+            if (localStorage.getItem('accessToken')) {
+                // window.location.href = '/ui/dashboard';
+                // Decided against auto-redirecting from login if already logged in, user might want to re-login.
+            }
+        });
+
+    document.getElementById('loginForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+            clearMessages('loginError', null); // Clear previous errors
+
+        const formData = new URLSearchParams();
+            formData.append('username', document.getElementById('email').value);
+            formData.append('password', document.getElementById('password').value);
+
+        try {
+                // Using fetchWithAuth - it handles token but login doesn't need to send one
+                // However, fetchWithAuth also handles 401 by redirecting, which is not what we want here.
+                // So, for login/register, direct fetch is still better.
+                const response = await fetch(`${API_BASE_URL}/auth/login`, { // Use API_BASE_URL
+                method: 'POST',
+                    body: formData
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                    displayError('loginError', data.detail || 'Login failed.');
+            } else {
+                localStorage.setItem('accessToken', data.access_token);
+                localStorage.setItem('tokenType', data.token_type);
+                    checkAuthStatusAndUpdateNavbar(false); // Update navbar immediately
+                    window.location.href = '/ui/dashboard';
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+                displayError('loginError', 'An unexpected error occurred.');
+        }
+    });
+</script>
+{% endblock %}

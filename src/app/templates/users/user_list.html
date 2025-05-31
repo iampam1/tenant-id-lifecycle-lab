@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}User List - Tenant Lifecycle Lab{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">Users in My Tenant</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
+            <a href="/ui/users/create" class="btn btn-sm btn-outline-primary">Create New User</a>
+        </div>
+    </div>
+    <div id="userListError" class="alert alert-danger" style="display: none;" role="alert"></div>
+    <div class="table-responsive">
+        <table class="table table-striped table-sm">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Active</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="userTableBody">
+                <!-- User rows will be populated by JavaScript -->
+                <tr><td colspan="6">Loading users...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', async function() {
+        // main.js has checkAuthStatusAndUpdateNavbar(false)
+        // This page requires login, so redirect if no token.
+        if (!localStorage.getItem('accessToken')) {
+            window.location.href = '/ui/login?source=user_list';
+            return;
+        }
+        // Navbar is already updated by main.js's call.
+
+        const userTableBody = document.getElementById('userTableBody');
+        const userListError = document.getElementById('userListError');
+        clearMessages('userListError', null);
+
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/users/`); // Uses common fetch function
+
+            userTableBody.innerHTML = ''; // Clear loading message
+
+            if (!response.ok) {
+                // fetchWithAuth handles 401 redirect, so this is for other errors
+                const errorData = await response.json();
+                displayError('userListError', errorData.detail || 'Failed to load users.');
+                return;
+            }
+
+            const users = await response.json();
+            if (users.length === 0) {
+                userTableBody.innerHTML = '<tr><td colspan="6">No users found in this tenant.</td></tr>';
+            } else {
+                users.forEach(user => {
+                    const row = userTableBody.insertRow();
+                    row.insertCell().textContent = user.id;
+                    row.insertCell().textContent = user.username;
+                    row.insertCell().textContent = user.email;
+                    row.insertCell().textContent = user.is_active ? 'Yes' : 'No';
+                    row.insertCell().textContent = new Date(user.created_at).toLocaleString();
+                    row.insertCell().innerHTML = `<button class="btn btn-sm btn-info" disabled>Edit</button> <button class="btn btn-sm btn-danger" disabled>Delete</button>`;
+                });
+            }
+        } catch (error) { // Network errors or others not handled by fetchWithAuth's 401
+            console.error('Error fetching user list:', error);
+            userTableBody.innerHTML = '';
+            displayError('userListError', 'An unexpected error occurred while fetching users.');
+        }
+    });
+</script>
+{% endblock %}

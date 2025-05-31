@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Register Tenant Admin - Tenant Lifecycle Lab{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2>Register New Tenant & Admin</h2>
+        <div id="registerError" class="alert alert-danger" style="display: none;" role="alert"></div>
+        <div id="registerSuccess" class="alert alert-success" style="display: none;" role="alert"></div>
+        <form id="registerForm">
+            <div class="mb-3">
+                <label for="tenantName" class="form-label">Tenant Name</label>
+                <input type="text" class="form-control" id="tenantName" required>
+            </div>
+            <div class="mb-3">
+                <label for="adminUsername" class="form-label">Admin Username</label>
+                <input type="text" class="form-control" id="adminUsername" required>
+            </div>
+            <div class="mb-3">
+                <label for="adminEmail" class="form-label">Admin Email address</label>
+                <input type="email" class="form-control" id="adminEmail" required>
+            </div>
+            <div class="mb-3">
+                <label for="adminPassword" class="form-label">Admin Password</label>
+                <input type="password" class="form-control" id="adminPassword" required minlength="8">
+            </div>
+            <button type="submit" class="btn btn-primary">Register</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        checkAuthStatusAndUpdateNavbar(false); // No redirect from register page
+    });
+
+    document.getElementById('registerForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        clearMessages('registerError', 'registerSuccess');
+
+        const payload = {
+            tenant_name: document.getElementById('tenantName').value,
+            username: document.getElementById('adminUsername').value,
+            email: document.getElementById('adminEmail').value,
+            password: document.getElementById('adminPassword').value
+        };
+
+        try {
+            // Direct fetch for register
+            const response = await fetch(`${API_BASE_URL}/auth/register`, { // Use API_BASE_URL
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                displayError('registerError', data.detail || 'Registration failed.');
+            } else {
+                displaySuccess('registerSuccess', 'Registration successful! User: ' + data.username + '. You can now login.');
+                document.getElementById('registerForm').reset();
+            }
+        } catch (error) {
+            console.error('Registration error:', error);
+            displayError('registerError', 'An unexpected error occurred.');
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Offboard User - Tenant Lifecycle Lab{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2>Offboard User</h2>
+        <p>De-provision a user from IGA/PAM and deactivate their local application account. This action is performed within your current tenant.</p>
+        <div id="offboardError" class="alert alert-danger" style="display: none;" role="alert"></div>
+        <div id="offboardSuccess" class="alert alert-success" style="display: none;" role="alert"></div>
+
+        <form id="offboardForm">
+            <div class="mb-3">
+                <label for="appUsername" class="form-label">Application Username to Offboard</label>
+                <input type="text" class="form-control" id="appUsername" required>
+                <div class="form-text">Enter the username of the user within this application that you wish to offboard.</div>
+            </div>
+            <button type="submit" class="btn btn-danger">Offboard User</button>
+            <a href="/ui/dashboard" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+            if (!localStorage.getItem('accessToken')) {
+                window.location.href = '/ui/login?source=offboard_form';
+            return;
+        }
+            // Navbar already updated by main.js
+    });
+
+    document.getElementById('offboardForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+            clearMessages('offboardError', 'offboardSuccess');
+
+        const appUsername = document.getElementById('appUsername').value;
+        let currentTenantId = null;
+        try {
+                const meResponse = await fetchWithAuth(`${API_BASE_URL}/users/me`);
+            if (meResponse.ok) {
+                const meData = await meResponse.json();
+                currentTenantId = meData.tenant_id;
+            } else {
+                    displayError('offboardError', 'Could not determine current tenant for offboarding. Please re-login.');
+                return;
+            }
+        } catch(e) {
+                displayError('offboardError', 'Error fetching your user details. Please re-login.');
+            return;
+        }
+
+        if (!currentTenantId) {
+                 displayError('offboardError', 'Tenant ID could not be determined for the current user.');
+             return;
+        }
+
+        const payload = {
+            app_username: appUsername,
+                tenant_id: currentTenantId
+        };
+
+        if (!confirm(`Are you sure you want to offboard user "${appUsername}"? This action may de-provision them from external systems.`)) {
+            return;
+        }
+
+        try {
+                const response = await fetchWithAuth(`${API_BASE_URL}/lifecycle/offboard`, {
+                method: 'POST',
+                    body: payload
+            });
+                const data = await response.json();
+            if (!response.ok) {
+                    displayError('offboardError', data.detail || 'User offboarding failed.');
+            } else {
+                    displaySuccess('offboardSuccess', `Offboarding process for user '${data.app_username}' completed.<br>
+                                       Message: ${data.message}<br>
+                                       IGA Status: ${data.iga_status}<br>
+                                       PAM Status: ${data.pam_status}<br>
+                                           Local App Status: ${data.local_app_status}`);
+                document.getElementById('offboardForm').reset();
+            }
+        } catch (error) {
+            console.error('Offboarding error:', error);
+                displayError('offboardError', 'An unexpected error occurred during offboarding.');
+        }
+    });
+</script>
+{% endblock %}

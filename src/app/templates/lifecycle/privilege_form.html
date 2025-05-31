@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Request Privileged Session - Tenant Lifecycle Lab{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2>Request Privileged Session</h2>
+        <p>Request access to a target asset via the PAM system. The session will be associated with your current application user within your tenant.</p>
+        <div id="privilegeError" class="alert alert-danger" style="display: none;" role="alert"></div>
+        <div id="privilegeSuccess" class="alert alert-success" style="display: none;" role="alert"></div>
+
+        <form id="privilegeForm">
+            <div class="mb-3">
+                <label for="targetAsset" class="form-label">Target Asset Identifier (Name or ID in PAM)</label>
+                <input type="text" class="form-control" id="targetAsset" required>
+            </div>
+            <div class="mb-3">
+                <label for="pamUsername" class="form-label">PAM Username (Optional)</label>
+                <input type="text" class="form-control" id="pamUsername" placeholder="Defaults to your app username">
+                <div class="form-text">If your username in the PAM system is different from your application username, specify it here.</div>
+            </div>
+            <button type="submit" class="btn btn-primary">Request Session</button>
+            <a href="/ui/dashboard" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!localStorage.getItem('accessToken')) {
+            window.location.href = '/ui/login?source=privilege_form';
+            return;
+        }
+        // Navbar already updated by main.js
+    });
+
+    document.getElementById('privilegeForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        clearMessages('privilegeError', 'privilegeSuccess');
+
+        const payload = {
+            target_asset_identifier: document.getElementById('targetAsset').value,
+            pam_username: document.getElementById('pamUsername').value || null
+        };
+
+        if (!payload.pam_username) {
+            delete payload.pam_username;
+        }
+
+        try {
+            const response = await fetchWithAuth(`${API_BASE_URL}/lifecycle/privilege`, {
+                method: 'POST',
+                body: payload
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                displayError('privilegeError', data.detail || (data.error_detail || 'Privilege session request failed.'));
+            } else {
+                let successMessage = `Privilege session request acknowledged. Status: ${data.status}. Message: ${data.message}`;
+                if (data.session_url) {
+                    successMessage = `Privilege session requested successfully. Status: ${data.status}.<br>
+                                       Session URL: <a href="${data.session_url}" target="_blank">${data.session_url}</a>`;
+                }
+                displaySuccess('privilegeSuccess', successMessage);
+                document.getElementById('privilegeForm').reset();
+            }
+        } catch (error) {
+            console.error('Privilege request error:', error);
+            displayError('privilegeError', 'An unexpected error occurred while requesting privilege session.');
+        }
+    });
+</script>
+{% endblock %}
