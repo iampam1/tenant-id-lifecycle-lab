@@ -1,0 +1,42 @@
+version: '3'
+services:
+  mysql:
+    image: mysql:5.7
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_pwd
+      - MYSQL_DATABASE=jumpserver
+      - MYSQL_USER=jm
+      - MYSQL_PASSWORD=jm_pwd
+    ports:
+      - "3306:3306" # Exposes default MySQL port, ensure it doesn't conflict if running other MySQL instances
+  redis:
+    image: redis:6
+    ports:
+      - "6379:6379" # Exposes default Redis port
+  jumpserver:
+    # Assuming you would build a custom JumpServer image from its source
+    # For a pre-built image, you might use something like 'jumpserver/jms:latest'
+    # but the issue implies building from source or using their standard setup.
+    # The 'build: .' directive implies the Dockerfile is in the same directory
+    # as this docker-compose.yml, which would be the root of the JumpServer clone.
+    build: .
+    command: bash -l -c "./jms start" # Or the appropriate command to start JumpServer
+    environment:
+      - DB_ENGINE=mysql
+      - DB_HOST=mysql      # Service name from this docker-compose file
+      - DB_PORT=3306
+      - DB_USER=jm
+      - DB_PASSWORD=jm_pwd
+      - DB_NAME=jumpserver # Added for completeness, should match mysql service env
+      - REDIS_HOST=redis   # Service name from this docker-compose file
+      - REDIS_PORT=6379
+      # SECRET_KEY should be set here or in config.yml
+      # - SECRET_KEY=your_very_secret_jumpserver_key
+    ports:
+      - "8080:8080" # Exposes JumpServer web UI
+    depends_on:
+      - mysql
+      - redis
+    # volumes:
+      # - ./jumpserver_data:/opt/jumpserver/data # Example for persisting data
+      # - ./logs:/opt/jumpserver/logs           # Example for persisting logs
