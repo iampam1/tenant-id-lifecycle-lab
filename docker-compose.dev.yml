@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  # Application Database (PostgreSQL for FastAPI app)
+  app_db:
+    image: postgres:13-alpine
+    container_name: tenant_lab_app_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_APP_USER:-app_user} # Use .env or default
+      POSTGRES_PASSWORD: ${POSTGRES_APP_PASSWORD:-app_password}
+      POSTGRES_DB: ${POSTGRES_APP_DB:-app_db}
+    volumes:
+      - pgdata_app:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_APP_PORT_HOST:-5432}:${POSTGRES_APP_PORT_CONTAINER:-5432}" # Expose to host, allow override from .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_APP_USER:-app_user} -d ${POSTGRES_APP_DB:-app_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tenant_lab_fastapi_app
+    command: sh -c "echo 'App waiting for DB...' && ./wait-for-it.sh app_db:${POSTGRES_APP_PORT_CONTAINER:-5432} -- echo 'DB is up.' && echo 'Attempting DB migration...' && alembic upgrade head && echo 'DB migration attempt finished.' && echo 'Starting Uvicorn server...' && uvicorn src.app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./src:/app/src # Mount host src directory to /app/src in container for live reload
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env # Load environment variables from .env file
+    depends_on:
+      app_db:
+        condition: service_healthy # Wait for app_db to be healthy
+    restart: unless-stopped
+    # Ensure DATABASE_URL in .env is set to:
+    # DATABASE_URL=postgresql://${POSTGRES_APP_USER:-app_user}:${POSTGRES_APP_PASSWORD:-app_password}@app_db:${POSTGRES_APP_PORT_CONTAINER:-5432}/${POSTGRES_APP_DB:-app_db}
+
+  # --- Conceptual IGA Backend (Example: midPoint with its own Postgres) ---
+  # This section is illustrative and would require significant resources and specific image configuration.
+  # Refer to docs/backend_dockerization.md and official midPoint documentation.
+  #
+  # midpoint_db:
+  #   image: postgres:13-alpine
+  #   container_name: tenant_lab_midpoint_db
+  #   environment:
+  #     POSTGRES_USER: midpoint_user
+  #     POSTGRES_PASSWORD: midpoint_password
+  #     POSTGRES_DB: midpoint_db
+  #   volumes:
+  #     - pgdata_midpoint:/var/lib/postgresql/data
+  #   ports:
+  #     - "5433:5432" # Different host port for midpoint DB
+  #   restart: unless-stopped
+  #
+  # midpoint:
+  #   # image: evolveum/midpoint:latest # Replace with actual/tested midPoint image
+  #   image: busybox # Placeholder - actual image needed
+  #   container_name: tenant_lab_midpoint
+  #   ports:
+  #     - "8081:8080" # midPoint UI on different host port
+  #   environment:
+  #     # These would need to be correctly set for midPoint's image
+  #     - MIDPOINT_DATABASE_TYPE=postgres
+  #     - MIDPOINT_DATABASE_HOST=midpoint_db
+  #     - MIDPOINT_DATABASE_PORT=5432
+  #     - MIDPOINT_DATABASE_NAME=midpoint_db
+  #     - MIDPOINT_DATABASE_USER=midpoint_user
+  #     - MIDPOINT_DATABASE_PASSWORD=midpoint_password
+  #     # - MIDPOINT_HOME_PATH=/opt/midpoint/var # Example
+  #   volumes:
+  #     # - ./midpoint_home_data:/opt/midpoint/var # Persist midpoint.home
+  #     # - ./midpoint-initial-config.xml:/opt/midpoint/post-initial-import/midpoint-initial-config.xml # Example initial config
+  #     - /dev/null:/dev/null # Placeholder volume
+  #   depends_on:
+  #     - midpoint_db
+  #   restart: unless-stopped
+  #   # Ensure IGA_API_URL in .env for 'app' service points to this, e.g., http://midpoint:8080/midpoint
+
+  # --- Conceptual PAM Backend (Example: JumpServer - already uses Docker Compose) ---
+  # For JumpServer, you would typically run its own docker-compose.yml separately,
+  # or carefully merge its services here if running on the same Docker network.
+  # If running separately, ensure the 'app' service can reach JumpServer's exposed port.
+  # Refer to third_party/jumpserver/docker-compose.example.yml and official docs.
+  #
+  # jumpserver_mysql:
+  #   image: mysql:5.7
+  #   # ... (config as per JumpServer's compose) ...
+  # jumpserver_redis:
+  #   image: redis:6
+  #   # ... (config as per JumpServer's compose) ...
+  # jumpserver:
+  #   # image: jumpserver/jms:latest # Or build from source
+  #   image: busybox # Placeholder
+  #   # ... (config as per JumpServer's compose, ensuring DB/Redis hostnames match service names here) ...
+  #   ports:
+  #     - "8082:8080" # JumpServer UI on different host port
+  #   depends_on:
+  #     - jumpserver_mysql
+  #     - jumpserver_redis
+  #   # Ensure PAM_API_URL in .env for 'app' service points to this, e.g., http://jumpserver:8080
+
+volumes:
+  pgdata_app: # Persistence for app_db
+  # pgdata_midpoint: # Persistence for midpoint_db
+  # midpoint_home_data: # Persistence for midpoint home
+
+# Default network is created automatically.
+# If services need to resolve each other by name (e.g., app -> app_db),
+# they are on the same default network.

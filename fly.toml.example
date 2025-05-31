@@ -1,0 +1,67 @@
+# fly.toml example for a FastAPI application
+# Replace "your-app-name" with the actual name of your Fly app.
+# This is a conceptual example; `fly launch` will generate one tailored to your project.
+
+app = "your-app-name" # Set by `fly launch`
+primary_region = "iad"  # Example region, set by `fly launch`
+
+# Build configuration (assumes Dockerfile at root)
+[build]
+  # builder = "paketobuildpacks/builder:base" # Example if using buildpacks
+  # buildpacks = ["gcr.io/paketo-buildpacks/python"]
+  # If using a Dockerfile (as we are):
+  dockerfile = "Dockerfile"
+  # You can specify build args if needed:
+  # [build.args]
+  #   EXAMPLE_BUILD_ARG = "example_value"
+
+# Environment variables (non-secret)
+# Secrets should be set via `fly secrets set VAR=VALUE`
+[env]
+  PORT = "8000" # Port Uvicorn will listen on inside the container
+  PYTHONUNBUFFERED = "1"
+  # API_V1_STR = "/api/v1" # Already set in core.config, but can be overridden
+  # PROJECT_NAME = "Tenant Lifecycle Lab via Fly"
+
+# Service definition
+[[services]]
+  protocol = "tcp"
+  internal_port = 8000 # Port your app listens on inside the container
+  processes = ["app"]  # Matches the process group name below (optional, defaults to "app")
+
+  [[services.ports]]
+    port = 80 # HTTP traffic
+    handlers = ["http"]
+    force_https = true # Automatically redirect HTTP to HTTPS
+
+  [[services.ports]]
+    port = 443 # HTTPS traffic
+    handlers = ["tls", "http"]
+
+  # Health checks
+  [services.http_checks] # Renamed from [[services.http_checks]] to [services.http_checks] as it's a table not array of tables for a single service block
+    interval = "10s"
+    timeout = "2s"
+    grace_period = "5s" # Time to wait for app to start before failing first health check
+    method = "get"
+    path = "/health" # <<< Changed to /health
+    protocol = "http" # Health checks typically run over HTTP internally to the machine/network
+    # tls_skip_verify = false # Default, usually fine
+
+  # TCP health check (alternative or additional)
+  # [[services.tcp_checks]]
+  #   interval = "10s"
+  #   timeout = "2s"
+  #   grace_period = "5s"
+
+# You can define multiple process groups if your app has them (e.g., app, worker)
+# For a simple FastAPI app, one "app" process is usually enough.
+# [processes]
+#   app = "uvicorn src.app.main:app --host 0.0.0.0 --port 8000"
+#   (The CMD in Dockerfile usually handles this, so [processes] might not be needed here
+#    if the Dockerfile's CMD is sufficient and matches the default "app" process.)
+
+# Optional: Define a release command that runs before new versions are deployed
+# This is where `alembic upgrade head` could go if not in Dockerfile CMD.
+# [deploy]
+#   release_command = "alembic upgrade head"

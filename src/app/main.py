@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, status # Add status
 from fastapi.staticfiles import StaticFiles # Import StaticFiles
 from fastapi.templating import Jinja2Templates # Import Jinja2Templates
 from starlette.middleware.cors import CORSMiddleware
@@ -28,9 +28,18 @@ app.add_middleware(
 )
 
 # Root endpoint
-@app.get("/")
+@app.get("/") # Keep existing root endpoint or modify as preferred
 async def root():
     return {"message": f"Welcome to {settings.PROJECT_NAME}"}
+
+@app.get("/health", status_code=status.HTTP_200_OK, tags=["Health"])
+async def health_check():
+    """
+    Simple health check endpoint.
+    Returns 200 OK if the application is running.
+    Can be expanded to check database connectivity or other dependencies.
+    """
+    return {"status": "ok"}
 
 # Include API routers
 app.include_router(auth_router.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Auth"])

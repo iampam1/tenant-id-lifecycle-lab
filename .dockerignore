@@ -1,0 +1,62 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Python virtual environment
+.venv
+venv/
+ENV/
+env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE and OS specific
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# Local instance data (if any)
+instance/
+local_settings.py
+db.sqlite3*
+
+# Test reports and coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Secrets / Environment files
+.env
+*.env
+
+# Documentation build output (if any)
+# site/ # Example for mkdocs
+# docs/_build/ # Example for Sphinx
+
+# Third party code if checked in and not needed in image
+# third_party/ # Be careful if any part of it is needed
+
+# Data (like pgdata if you run postgres locally and map it here)
+pgdata_app/
